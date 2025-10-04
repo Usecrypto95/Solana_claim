@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Claim Your 5.0 SOL Prize</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 480px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #f0faff;
+    color: #222;
+  }
+  h1 {
+    color: #008080;
+    text-align: center;
+  }
+  .countdown {
+    font-weight: bold;
+    text-align: center;
+    margin: 10px 0 20px 0;
+    font-size: 1.1em;
+  }
+  label {
+    font-weight: bold;
+  }
+  input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    margin-top: 6px;
+    margin-bottom: 12px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 1em;
+  }
+  button {
+    background: #008080;
+    color: white;
+    padding: 14px;
+    font-size: 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+  }
+  button:hover {
+    background: #006666;
+  }
+  .info-box {
+    background: #e0f7f7;
+    border-left: 5px solid #008080;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+  }
+  .warning {
+    background: #fff0f0;
+    border-left: 5px solid #d9534f;
+    color: #a94442;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 20px;
+  }
+  #signatureOutput {
+    font-family: monospace;
+    white-space: pre-wrap;
+    background: #f7f9f9;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎉 You Won 5.0 SOL!</h1>
+<p class="countdown" id="countdown"></p>
+
+<div class="info-box">
+  <p><strong>Claim your prize within 7 days.</strong></p>
+  <p>You can either connect your <em>Phantom wallet</em> automatically or enter your public Solana address manually.</p>
+  <p><strong>Security:</strong> We will never ask for your seed phrase or private keys. Only wallet connection or address is needed.</p>
+</div>
+
+<button id="connectWalletBtn">Connect Phantom Wallet</button>
+
+<div style="text-align:center; margin: 20px 0;">OR</div>
+
+<label for="manualAddress">Enter your Solana Public Address</label>
+<input type="text" id="manualAddress" placeholder="Example: 4N8i...">
+
+<button id="manualClaimBtn">Verify & Claim</button>
+
+<div id="status" style="margin-top:20px; font-weight:bold;"></div>
+
+<div id="signatureOutput" style="display:none;"></div>
+
+<div class="warning">
+  <strong>Warning:</strong> Never share your seed phrase or private keys with anyone. If someone asks for this, it’s a scam.
+</div>
+
+<script>
+  // Countdown for 7 days from now
+  const countdownEl = document.getElementById('countdown');
+  const claimDeadline = new Date(Date.now() + 7*24*60*60*1000); // 7 days from now
+
+  function updateCountdown() {
+    const now = new Date();
+    const diff = claimDeadline - now;
+    if (diff <= 0) {
+      countdownEl.textContent = "Claim period has expired.";
+      document.getElementById('connectWalletBtn').disabled = true;
+      document.getElementById('manualClaimBtn').disabled = true;
+      return;
+    }
+    const days = Math.floor(diff / (1000*60*60*24));
+    const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+    const minutes = Math.floor((diff % (1000*60*60)) / (1000*60));
+    const seconds = Math.floor((diff % (1000*60)) / 1000);
+    countdownEl.textContent = `Time left to claim: ${days}d ${hours}h ${minutes}m ${seconds}s`;
+  }
+  setInterval(updateCountdown, 1000);
+  updateCountdown();
+
+  // Phantom Wallet connect and sign
+  const connectBtn = document.getElementById('connectWalletBtn');
+  const manualClaimBtn = document.getElementById('manualClaimBtn');
+  const statusEl = document.getElementById('status');
+  const signatureOutput = document.getElementById('signatureOutput');
+
+  async function connectAndSign() {
+    statusEl.textContent = "";
+    signatureOutput.style.display = 'none';
+    try {
+      if (!window.solana || !window.solana.isPhantom) {
+        alert("Phantom wallet not detected. Please install it first: https://phantom.app/");
+        return;
+      }
+
+      // Connect wallet
+      const resp = await window.solana.connect();
+      const publicKey = resp.publicKey.toString();
+
+      // Message to sign
+      const message = `Claiming 5.0 SOL prize for wallet: ${publicKey} at ${new Date().toISOString()}`;
+
+      const encodedMessage = new TextEncoder().encode(message);
+      const signedMessage = await window.solana.signMessage(encodedMessage, 'utf8');
+      const signatureBase64 = btoa(String.fromCharCode(...signedMessage.signature));
+
+      // Show success & signature for backend verification
+      statusEl.textContent = `Wallet connected: ${publicKey}\nSignature generated below. Send this info to backend to claim your prize.`;
+      signatureOutput.style.display = 'block';
+      signatureOutput.textContent = `Message:\n${message}\n\nSignature (Base64):\n${signatureBase64}`;
+
+      // TODO: send {publicKey, message, signatureBase64} to backend for verification and payout
+
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Error: " + err.message;
+    }
+  }
+
+  function validateSolanaAddress(address) {
+    // Basic check: length 32-44, base58 characters
+    const base58regex = /^[A-HJ-NP-Za-km-z1-9]+$/;
+    return (address.length >= 32 && address.length <= 44 && base58regex.test(address));
+  }
+
+  function manualClaim() {
+    statusEl.textContent = "";
+    signatureOutput.style.display = 'none';
+    const addr = document.getElementById('manualAddress').value.trim();
+    if (!validateSolanaAddress(addr)) {
+      statusEl.textContent = "Invalid Solana address format.";
+      return;
+    }
+    statusEl.textContent = `Manual address entered: ${addr}\nPlease send this address to backend for payout verification.`;
+
+    // You can also add additional manual verification steps here if needed.
+  }
+
+  connectBtn.addEventListener('click', connectAndSign);
+  manualClaimBtn.addEventListener('click', manualClaim);
+</script>
+
+</body>
+</html>
